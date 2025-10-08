@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 50-Day GS Study Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The SPA transforms the static markdown schedule into an interactive dashboard. The structure is a top-level progress overview (KPIs like days completed, progress bar) followed by a tabbed weekly navigation. This breaks the 50-day plan into manageable chunks. Each day is a "card" with a "complete" checkbox. This task-oriented, interactive design was chosen over a simple table for better usability, progress tracking, and motivation. A donut chart provides a high-level summary of time allocation per subject. -->
+    <!-- Visualization & Content Choices: 1. Schedule Data -> Goal: Organize/Inform -> Presentation: Weekly filtered "cards" -> Interaction: Checkboxes to mark completion, which updates state. Justification: Converts passive data into an active checklist. Method: HTML/Tailwind/JS. 2. Progress Data -> Goal: Inform/Motivate -> Presentation: KPI boxes and a progress bar. -> Interaction: Dynamically updates on checkbox clicks. Justification: Provides immediate feedback and a sense of accomplishment. Method: HTML/Tailwind/JS. 3. Subject Allocation Data -> Goal: Compare/Analyze -> Viz: Donut Chart -> Interaction: Hover to see details. Justification: Gives a strategic overview of the study plan's balance not easily seen in the table. Library: Chart.js (Canvas). -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF8;
+            color: #4A4A4A;
+        }
+        .active-week {
+            background-color: #A67B5B !important;
+            color: white !important;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .day-card:has(input:checked) {
+            background-color: #F0EBE3;
+            border-left-color: #A67B5B;
+        }
+        .day-card:has(input:checked) h3 {
+            text-decoration: line-through;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-[#A67B5B]">Interactive 50-Day GS Study Plan</h1>
+            <p class="mt-2 text-lg text-gray-600">Your personalized dashboard to conquer the General Studies syllabus.</p>
+        </header>
+
+        <main>
+            <section id="overview" class="mb-10 p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Progress Overview</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div class="bg-[#F0EBE3] p-5 rounded-xl text-center">
+                        <p class="text-sm font-medium text-gray-500">Days Completed</p>
+                        <p id="days-completed" class="text-3xl font-bold text-[#A67B5B]">0</p>
+                    </div>
+                    <div class="bg-[#F0EBE3] p-5 rounded-xl text-center">
+                        <p class="text-sm font-medium text-gray-500">Days Remaining</p>
+                        <p id="days-remaining" class="text-3xl font-bold text-[#A67B5B]">50</p>
+                    </div>
+                    <div class="bg-[#F0EBE3] p-5 rounded-xl text-center">
+                        <p class="text-sm font-medium text-gray-500">Current Focus</p>
+                        <p id="current-focus" class="text-3xl font-bold text-[#A67B5B]">GS I</p>
+                    </div>
+                     <div class="bg-[#F0EBE3] p-5 rounded-xl text-center">
+                        <p class="text-sm font-medium text-gray-500">Total Study Hours</p>
+                        <p class="text-3xl font-bold text-[#A67B5B]">~178</p>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-base font-medium text-[#A67B5B]">Overall Progress</span>
+                        <span id="progress-percentage" class="text-sm font-medium text-[#A67B5B]">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div id="progress-bar" class="bg-[#A67B5B] h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="mb-10 p-6 bg-white rounded-2xl shadow-sm border border-gray-200">
+                 <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Time Allocation per Subject</h2>
+                 <p class="text-center text-gray-600 mb-6">This chart shows the number of days dedicated to each General Studies paper, including mock tests and revision days. Use it to understand the overall structure and balance of your 50-day plan.</p>
+                 <div class="chart-container">
+                     <canvas id="subjectDistributionChart"></canvas>
+                 </div>
+            </section>
+
+            <section id="schedule">
+                <div id="week-navigation" class="flex flex-wrap justify-center gap-2 mb-8">
+                    <button data-week="1" class="week-btn px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition duration-150 active-week">Week 1</button>
+                    <button data-week="2" class="week-btn px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition duration-150">Week 2</button>
+                    <button data-week="3" class="week-btn px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition duration-150">Week 3</button>
+                    <button data-week="4" class="week-btn px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition duration-150">Week 4</button>
+                    <button data-week="5" class="week-btn px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition duration-150">Week 5</button>
+                    <button data-week="6" class="week-btn px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition duration-150">Week 6</button>
+                    <button data-week="7" class="week-btn px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 hover:bg-gray-100 transition duration-150">Week 7</button>
+                </div>
+
+                <div id="schedule-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const scheduleData = [
+                { day: 1, week: 1, paper: 'GS I', core: 'Art & Culture (1.1-1.3): Art Forms, Literature, Architecture.', sub: 'Society (3.1): Salient Features and Diversity of India.', awp: '1 question on Art & Culture (e.g., Temple Architecture).' },
+                { day: 2, week: 1, paper: 'GS I', core: 'Modern History (2.1): Significant Events (Mid 18th Century to 1900).', sub: "Society (3.2): Role of Women and Women's Organizations.", awp: '1 question on Modern History (pre-1900 events).' },
+                { day: 3, week: 1, paper: 'GS I', core: 'Freedom Struggle (2.2): Various Stages and Important Contributors (1900-1947).', sub: 'Society (3.3-3.4): Population, Poverty & Developmental Issues.', awp: '1 question on Freedom Struggle (e.g., Gandhian phase).' },
+                { day: 4, week: 1, paper: 'GS I', core: 'Post-Independence (2.3): Consolidation and Reorganization.', sub: 'Society (3.5): Urbanization (Problems & Remedies).', awp: '1 question on Post-Independence challenges.' },
+                { day: 5, week: 1, paper: 'GS I', core: 'World History (2.4.a-c): Industrial Revolution, World Wars, National Boundaries.', sub: 'Society (3.6): Effects of Globalization on Indian Society.', awp: '1 question on World History (causes/effects).' },
+                { day: 6, week: 1, paper: 'GS I', core: 'World History (2.4.d-2.5): Colonization, Decolonization, Political Philosophies (Comm/Cap/Soc).', sub: 'Society (3.7-3.8): Social Empowerment, Regionalism, Secularism.', awp: '1 question on Society (e.g., Communalism/Secularism).' },
+                { day: 7, week: 1, paper: 'GS I', core: "Geography (4.1): Salient Features of World's Physical Geography.", sub: 'Daily/Weekly Revision: Quick review of all GS I topics covered so far.', awp: '1 question on Physical Geography.' },
+                { day: 8, week: 2, paper: 'GS I', core: 'Geography (4.2): Distribution of Key Natural Resources (World, South Asia, India).', sub: 'Polity Introduction: Basic structure and Constitutional comparison (1.1.g).', awp: '1 question on Resource Distribution.' },
+                { day: 9, week: 2, paper: 'GS I', core: 'Geography (4.3): Factors for Industrial Location (Primary, Secondary, Tertiary).', sub: 'Constitution (1.2): Union & States: Functions and Responsibilities.', awp: '1 question on Industrial Location in India.' },
+                { day: 10, week: 2, paper: 'GS I', core: 'Geography (4.4): Important Geophysical Phenomena (Earthquakes, Tsunami, Cyclone).', sub: 'Constitution (1.3-1.4): Federal Structure, Decentralization of Power & Challenges.', awp: '1 question on Geophysical Phenomena (e.g., Tsunami).' },
+                { day: 11, week: 2, paper: 'GS I', core: 'Geography (4.5): Changes in Critical Geographical Features (Water, Ice, Flora, Fauna).', sub: 'Constitution (1.5-1.6): Constitutional Posts & Statutory/Regulatory/Quasi-judicial Bodies.', awp: '1 question on Environmental/Geographical change effects.' },
+                { day: 12, week: 2, paper: 'GS II', core: 'Polity (2.1): Separation of Powers, Dispute Redressal Mechanisms.', sub: 'Polity (2.2.a-c): Parliament & State Legislatures: Structure, Functioning, Conduct of Business.', awp: '1 question on Separation of Powers/Dispute Redressal.' },
+                { day: 13, week: 2, paper: 'GS II', core: 'Polity (2.2.d-e): Parliament & State Legislatures: Powers & Privileges, Issues.', sub: 'Polity (2.3-2.4): Executive and Judiciary (Structure, Organization, Functioning), Ministries & Departments.', awp: '1 question on Parliamentary Privileges or Issues.' },
+                { day: 14, week: 2, paper: 'GS II', core: "Polity (2.5-2.6): Pressure Groups & Role in Polity, Salient Features of RPA.", sub: 'Daily/Weekly Revision: Quick review of GS I completion and GS II start.', awp: '1 question on Pressure Groups/RPA.' },
+                { day: 15, week: 3, paper: 'GS II', core: 'Social Justice (3.1): Government Policies and Interventions (Design & Implementation Issues).', sub: 'Governance (4.1): Important Aspects: Transparency & Accountability.', awp: '1 question on Policy Implementation Issues.' },
+                { day: 16, week: 3, paper: 'GS II', core: 'Social Justice (3.2): Development Process & Industry (NGOs, SHGs, Donors, Stakeholders).', sub: 'Governance (4.2): E-governance (Applications, Models, Limitations, Potential).', awp: '1 question on the role of NGOs/SHGs.' },
+                { day: 17, week: 3, paper: 'GS II', core: 'Social Justice (3.3): Welfare Schemes for Vulnerable Sections (Centre & States).', sub: "Governance (4.3): Citizens' Charters, Transparency, and Accountability Measures.", awp: '1 question on Welfare Schemes for a specific vulnerable group.' },
+                { day: 18, week: 3, paper: 'GS II', core: 'Social Justice (3.3.c): Protection Mechanisms, Laws, Institutions & Bodies for Vulnerable Sections.', sub: 'Governance (4.4): Role of Civil Services in a Democracy.', awp: '1 question on Civil Services/Ethical Dilemma in Governance.' },
+                { day: 19, week: 3, paper: 'GS II', core: 'Social Justice (3.4-3.5): Social Sector/Services (Health, Education, HR) and Issues of Poverty & Hunger.', sub: 'International Relations (5.1): India and its Neighborhood (Relations).', awp: '1 question on Health/Education sector issues.' },
+                { day: 20, week: 3, paper: 'GS II', core: "International Relations (5.2): Groupings and Agreements (Bilateral, Regional, Global) affecting India's interests.", sub: "International Relations (5.3-5.4): Effects of Developed/Developing Countries' Policies on India, Indian Diaspora.", awp: "1 question on India's relation with a neighbor/grouping (e.g., SAARC)." },
+                { day: 21, week: 3, paper: 'GS II', core: 'International Relations (5.5): Important International Institutions, Agencies, and Fora (Structure & Mandate).', sub: 'Daily/Weekly Revision: Quick review of GS II completion.', awp: '1 question on International Institutions (e.g., WTO/UN).' },
+                { day: 22, week: 4, paper: 'GS III', core: 'Economy (1.1): Planning, Mobilization of Resources, Growth, Development, Employment.', sub: 'Economy (1.2-1.3): Inclusive Growth and Issues, Government Budgeting.', awp: '1 question on Inclusive Growth/Employment.' },
+                { day: 23, week: 4, paper: 'GS III', core: 'Economy (1.4): Direct and Indirect Farm Subsidies and Minimum Support Prices (MSP).', sub: 'Economy (1.5.a-c): Public Distribution System (PDS): Objectives, Functioning, Limitations.', awp: '1 question on MSP/Subsidies.' },
+                { day: 24, week: 4, paper: 'GS III', core: 'Economy (1.5.d-e): PDS Revamping, Buffer Stocks, and Food Security Issues.', sub: 'Economy (1.6): Land Reforms in India.', awp: '1 question on PDS/Food Security.' },
+                { day: 25, week: 4, paper: 'GS III', core: 'Economy (1.7-1.8): Effects of Liberalization, Industrial Policy and Industrial Growth.', sub: 'Economy (1.9.a-c): Infrastructure: Energy, Ports, Roads.', awp: '1 question on Liberalization/Industrial Policy.' },
+                { day: 26, week: 4, paper: 'GS III', core: 'Economy (1.9.d-1.10): Infrastructure: Airports, Railways, Investment Models.', sub: 'Agriculture (2.1.a-d): Major Crops, Cropping Patterns, Irrigation Systems.', awp: '1 question on Investment Models/Infrastructure.' },
+                { day: 27, week: 4, paper: 'GS III', core: 'Agriculture (2.1.e-h): Agricultural Produce (Transport/Marketing/Issues), E-technology, Economics of Animal Rearing.', sub: 'Agriculture (2.2): Food Processing and Related Industries (Scope, Significance, Supply Chain).', awp: '1 question on Food Processing/E-Technology in Agriculture.' },
+                { day: 28, week: 4, paper: 'GS III', core: 'Daily/Weekly Revision: Review of GS III Economy and Agriculture.', sub: 'Science & Tech (2.3): Developments, Applications, Effects in Everyday Life.', awp: '1 question combining Economy and Agriculture (e.g., Value Chain).' },
+                { day: 29, week: 5, paper: 'GS III', core: 'Science & Tech (2.4): Achievements of Indians, Indigenization, Developing New Technology.', sub: 'Science & Tech (2.5.a-c): IT, Space, Computers.', awp: '1 question on Indian achievements in S&T.' },
+                { day: 30, week: 5, paper: 'GS III', core: 'Science & Tech (2.5.d-g): Robotics, Nano-technology, Bio-technology, IPR Issues.', sub: 'Security (5.1-5.2.a): Linkages between Development and Extremism, Role of External State/Non-state actors.', awp: '1 question on Nano-tech/Bio-tech/IPR.' },
+                { day: 31, week: 5, paper: 'GS III', core: 'Security (5.2.c-f): Communication Networks, Media/Social Media Role, Cyber Security Basics.', sub: 'Security (5.2.g-5.4): Money Laundering, Border Security, Organized Crime & Terrorism Linkages.', awp: '1 question on Cyber Security/Money Laundering.' },
+                { day: 32, week: 5, paper: 'GS III', core: 'Security (5.5): Various Security forces and agencies and their mandate.', sub: 'Disaster Management (4): Disaster and Disaster Management (Concepts, Preparedness, Mitigation).', awp: '1 question on Border Management/Security Agencies.' },
+                { day: 33, week: 5, paper: 'GS III', core: 'Environment (3.1-3.3): Conservation, Environmental Pollution, Degradation.', sub: 'Environment (3.4): Environmental Impact Assessment (EIA).', awp: '1 question on DM (e.g., Cyclone preparedness).' },
+                { day: 34, week: 5, paper: 'GS III', core: 'Daily/Weekly Revision: Review of GS III S&T, Security, Environment, and DM.', sub: 'Quick Revision: Top 5 weak areas from GS I or II.', awp: '1 question on Conservation/Pollution.' },
+                { day: 35, week: 5, paper: 'GS IV', core: 'Ethics (1.1): Ethics and Human Interface (Essence, Determinants, Consequences in Human Actions).', sub: 'Ethics (1.2-1.3): Dimensions of Ethics, Ethics in Private and Public Relationships.', awp: "Ethics Case Study 1: Analyze a dilemma based on 'Consequences of Action'." },
+                { day: 36, week: 6, paper: 'GS IV', core: 'Ethics (1.4): Human Values (Lessons from Leaders/Reformers/Administrators, Role of Family/Society/Institutions).', sub: 'Ethics (1.5-1.6): Contributions of Moral Thinkers/Philosophers, Attitude (Content, Structure, Function).', awp: 'Ethics Theory Question 1: Define and analyze the role of family in inculcating values.' },
+                { day: 37, week: 6, paper: 'GS IV', core: 'Integrity (2.1): Foundational Values for Civil Service (Integrity, Impartiality, Empathy, etc.).', sub: 'Emotional Intelligence (2.2): Concepts, Utilities, Application in Administration.', awp: "Ethics Case Study 2: Analyze a dilemma involving 'Impartiality vs. Compassion'." },
+                { day: 38, week: 6, paper: 'GS IV', core: 'Integrity (2.3-2.5): Probity in Governance, Concept of Public Service, Philosophical Basis of Governance.', sub: 'Integrity (2.6-2.7): Information Sharing, Transparency, Right to Information (RTI).', awp: 'Ethics Theory Question 2: Explain the application of Emotional Intelligence in civil services.' },
+                { day: 39, week: 6, paper: 'GS IV', core: "Integrity (2.8): Codes of Ethics/Conduct, Citizen's Charters, Work Culture, Quality of Service Delivery, Corruption Challenges.", sub: 'Aptitude (3.1-3.3): Aptitude for Civil Service, Ethical Concerns & Dilemmas, Sources of Ethical Guidance.', awp: "Ethics Case Study 3: Analyze a dilemma involving 'RTI vs. Official Secrecy'." },
+                { day: 40, week: 6, paper: 'GS IV', core: 'Aptitude (3.4-3.7): Accountability & Ethical Governance, Strengthening Values, Ethical Issues in IR/Funding, Corporate Governance.', sub: 'Daily/Weekly Revision: Review of all GS IV concepts.', awp: 'Ethics Theory Question 3: Discuss the challenges of corruption and institutional remedies.' },
+                { day: 41, week: 6, paper: 'GS I/II', core: 'Full Revision Session: Modern History (2.1-2.3) and Constitution (1.1-1.4).', sub: 'Full Revision Session: Geography (4.1-4.3) and Social Justice (3.3-3.5).', awp: 'Mixed AWP: Attempt 2 full questions (1 from GS I, 1 from GS II).' },
+                { day: 42, week: 7, paper: 'GS III/IV', core: 'Full Revision Session: Economy (1.1-1.5) and S&T (2.3-2.5).', sub: 'Full Revision Session: Security (5.1-5.4) and Ethics (1.1-1.6).', awp: 'Mixed AWP: Attempt 2 full questions (1 from GS III, 1 from GS IV Theory).' },
+                { day: 43, week: 7, paper: 'MOCK', core: 'Mock Test 1 (Full 3-Hour Paper): Time-bound attempt of a complete GS paper (focus on GS I/II).', sub: 'Mock Test Analysis: Detailed review of strengths and weaknesses from Mock 1.', awp: 'Re-write 2 weak answers from the Mock Test.' },
+                { day: 44, week: 7, paper: 'REVIS', core: 'Targeted Revision: Focus 2 hours entirely on the weakest subject/topic identified in Mock 1.', sub: 'Targeted Revision: Focus 1.5 hours on the second weakest subject/topic.', awp: 'Attempt 1 question from a completely neglected area (e.g., World History: 2.4.d).' },
+                { day: 45, week: 7, paper: 'GS I/II', core: 'IR (5.1-5.5) & Governance (4.1-4.4) Revision.', sub: 'Culture (1.1-1.3) & Post-Independence (2.3) Revision.', awp: 'Attempt 1 question on Governance/IR.' },
+                { day: 46, week: 7, paper: 'GS III/IV', core: 'Agri (2.1-2.2) & Environment (3.1-3.4) Revision.', sub: 'Foundational Values (2.1) & Case Studies Approach Revision.', awp: 'Practice writing 1 full GS IV Case Study answer in 60 mins.' },
+                { day: 47, week: 7, paper: 'MOCK', core: 'Mock Test 2 (Full 3-Hour Paper): Time-bound attempt of a complete GS paper (focus on GS III/IV).', sub: 'Mock Test Analysis: Detailed review of strengths and weaknesses from Mock 2.', awp: 'Re-write 2 weak answers from the Mock Test.' },
+                { day: 48, week: 7, paper: 'REVIS', core: 'Targeted Revision: Focus 2 hours entirely on the weakest subject/topic identified in Mock 2.', sub: 'Targeted Revision: Focus 1.5 hours on the second weakest subject/topic.', awp: 'Mixed AWP: Attempt 2 full questions (1 from GS I, 1 from GS III) on newly revised topics.' },
+                { day: 49, week: 7, paper: 'FINAL', core: 'Quick Peek Day: 3.5 hours of rapid-fire review of *all* high-yield facts, names, definitions, and schemes.', sub: 'Confidence Building: Read over your best answers and notes.', awp: 'No AWP. Relax, rest, and hydrate.' },
+                { day: 50, week: 7, paper: 'EXAM', core: 'Exam Day! (Rest and review notes only).', sub: 'You did it!', awp: '' }
+            ];
+
+            let completedDays = JSON.parse(localStorage.getItem('completedDays')) || [];
+            let currentWeek = 1;
+
+            const scheduleCardsContainer = document.getElementById('schedule-cards');
+            const weekNavigation = document.getElementById('week-navigation');
+
+            function renderCards() {
+                scheduleCardsContainer.innerHTML = '';
+                scheduleData.forEach(day => {
+                    const card = `
+                        <div class="day-card bg-white p-6 rounded-2xl shadow-sm border border-l-4 border-transparent transition-colors duration-300 ${day.week === currentWeek ? '' : 'hidden'}" data-week="${day.week}" data-day="${day.day}" data-paper="${day.paper}">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-sm font-semibold text-white bg-[#A67B5B] px-3 py-1 rounded-full">${day.paper}</span>
+                                    <h3 class="text-xl font-bold text-gray-800 mt-3 mb-3">Day ${day.day}</h3>
+                                </div>
+                                <div class="flex items-center">
+                                    <label for="day-${day.day}" class="text-sm text-gray-500 mr-2">Done</label>
+                                    <input type="checkbox" id="day-${day.day}" data-day="${day.day}" class="day-checkbox h-5 w-5 rounded border-gray-300 text-[#A67B5B] focus:ring-[#A67B5B]" ${completedDays.includes(day.day) ? 'checked' : ''}>
+                                </div>
+                            </div>
+                            <div class="space-y-3 text-gray-700">
+                                <p><strong class="font-semibold text-gray-900">Core (90 min):</strong> ${day.core}</p>
+                                <p><strong class="font-semibold text-gray-900">Sub-Topic (60 min):</strong> ${day.sub}</p>
+                                ${day.awp ? `<p><strong class="font-semibold text-gray-900">AWP (60 min):</strong> ${day.awp}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    scheduleCardsContainer.insertAdjacentHTML('beforeend', card);
+                });
+                addCheckboxListeners();
+            }
+
+            function updateProgress() {
+                const completedCount = completedDays.length;
+                const totalDays = 50;
+                const remainingCount = totalDays - completedCount;
+                const progressPercentage = Math.round((completedCount / totalDays) * 100);
+
+                document.getElementById('days-completed').textContent = completedCount;
+                document.getElementById('days-remaining').textContent = remainingCount;
+                document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+                document.getElementById('progress-percentage').textContent = `${progressPercentage}%`;
+
+                const firstUncompletedDay = scheduleData.find(d => !completedDays.includes(d.day));
+                document.getElementById('current-focus').textContent = firstUncompletedDay ? firstUncompletedDay.paper : 'Done!';
+            }
+
+            function addCheckboxListeners() {
+                document.querySelectorAll('.day-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', (e) => {
+                        const day = parseInt(e.target.dataset.day);
+                        if (e.target.checked) {
+                            if (!completedDays.includes(day)) {
+                                completedDays.push(day);
+                            }
+                        } else {
+                            completedDays = completedDays.filter(d => d !== day);
+                        }
+                        localStorage.setItem('completedDays', JSON.stringify(completedDays));
+                        updateProgress();
+                    });
+                });
+            }
+
+            weekNavigation.addEventListener('click', (e) => {
+                if (e.target.classList.contains('week-btn')) {
+                    currentWeek = parseInt(e.target.dataset.week);
+                    document.querySelectorAll('.week-btn').forEach(btn => btn.classList.remove('active-week'));
+                    e.target.classList.add('active-week');
+                    document.querySelectorAll('.day-card').forEach(card => {
+                        if (parseInt(card.dataset.week) === currentWeek) {
+                            card.classList.remove('hidden');
+                        } else {
+                            card.classList.add('hidden');
+                        }
+                    });
+                }
+            });
+
+            function createSubjectChart() {
+                const ctx = document.getElementById('subjectDistributionChart').getContext('2d');
+                const paperCounts = scheduleData.reduce((acc, day) => {
+                    const paper = day.paper.split('/')[0];
+                    acc[paper] = (acc[paper] || 0) + 1;
+                    return acc;
+                }, {});
+
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(paperCounts),
+                        datasets: [{
+                            label: 'Days per Subject',
+                            data: Object.values(paperCounts),
+                            backgroundColor: ['#A67B5B', '#D5BBA9', '#E8D8C3', '#C9ADA7', '#9A8C98', '#7E7F9A', '#6D6875'],
+                            borderColor: '#FDFBF8',
+                            borderWidth: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    font: {
+                                        family: "'Inter', sans-serif",
+                                        size: 14,
+                                    },
+                                    color: '#4A4A4A'
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            label += context.parsed + ' days';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            renderCards();
+            updateProgress();
+            createSubjectChart();
+        });
+    </script>
+</body>
+</html>
